@@ -31,10 +31,14 @@ class MarkCreate(BaseModel):
 class MarkOut(BaseModel):
     id: int
     video_id: int
+    time: float
     start_time: float
     end_time: float
+    start_offset: float
+    end_offset: float
     category: str
     label: str
+    player_numbers: list[int] = []
     players: list[PlayerInfo] = []
 
     model_config = {"from_attributes": True}
@@ -53,10 +57,14 @@ class VideoOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class AppConfig(BaseModel):
+class _Features(BaseModel):
     clips: bool = True
     highlights: bool = True
     sharing: bool = True
+
+
+class AppConfig(BaseModel):
+    features: _Features = _Features()
 
 
 class UploadUrlResponse(BaseModel):

@@ -60,6 +60,12 @@ def login(
     from .auth import login as auth_login
     from .config import set_api_url
 
+    if password is not None:
+        err_console.print(
+            "[yellow]警告：透過 --password 傳入密碼會留在 shell history 及 process list 中，"
+            "建議改用互動式輸入。[/yellow]"
+        )
+
     if username is None:
         username = typer.prompt("帳號")
     if password is None:

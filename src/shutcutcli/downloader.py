@@ -15,10 +15,21 @@ _YOUTUBE_DOMAINS = re.compile(
 )
 
 
+def _sanitize_url_for_display(url: str) -> str:
+    """移除 URL 中可能的嵌入式認證資訊（user:pass@）。"""
+    from urllib.parse import urlparse, urlunparse
+    parsed = urlparse(url)
+    if parsed.username or parsed.password:
+        sanitized = parsed._replace(netloc=parsed.hostname or "")
+        return urlunparse(sanitized)
+    return url
+
+
 def validate_youtube_url(url: str) -> None:
     """驗證 URL 是否為 YouTube 網域，否則拋出 ValueError。"""
     if not _YOUTUBE_DOMAINS.match(url):
-        raise ValueError(f"僅支援 YouTube 網址，拒絕：{url}")
+        safe_url = _sanitize_url_for_display(url)
+        raise ValueError(f"僅支援 YouTube 網址，拒絕：{safe_url}")
 
 
 def download_video(url: str, output_dir: Path | None = None) -> Path:
