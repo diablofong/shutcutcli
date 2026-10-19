@@ -16,6 +16,18 @@ console = Console()
 _POLL_INTERVAL = 5        # 秒
 _POLL_TIMEOUT = 600       # 10 分鐘
 
+_VIDEO_CONTENT_TYPES = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
+}
+
+
+def guess_video_content_type(file_path: Path) -> str:
+    """依副檔名判斷影片 Content-Type，未知格式預設 video/mp4。"""
+    return _VIDEO_CONTENT_TYPES.get(file_path.suffix.lower(), "video/mp4")
+
 
 async def upload_video(client: ShotCutClient, file_path: Path) -> VideoOut:
     """完整 Presigned URL 上傳流程：取得 URL → PUT S3 → confirm → 等待處理。
@@ -32,10 +44,11 @@ async def upload_video(client: ShotCutClient, file_path: Path) -> VideoOut:
 
     filename = file_path.name
     file_size = file_path.stat().st_size
+    content_type = guess_video_content_type(file_path)
 
     # 1. 取得 Presigned PUT URL
     console.print(f"[cyan]取得上傳 URL：{filename}[/cyan]")
-    upload_info = await client.get_upload_url(filename, content_type="video/mp4")
+    upload_info = await client.get_upload_url(filename, content_type=content_type)
 
     # 2. Streaming PUT 上傳至 S3
     console.print(f"[cyan]上傳影片至儲存空間（{file_size / 1024 / 1024:.1f} MB）...[/cyan]")
@@ -49,18 +62,20 @@ async def upload_video(client: ShotCutClient, file_path: Path) -> VideoOut:
     ) as progress:
         task: TaskID = progress.add_task("上傳中", total=file_size)
 
-        def _iter_file():
+        # AsyncClient 需使用 async generator 才能 streaming 上傳
+        async def _iter_file():
             chunk_size = 1024 * 1024  # 1MB chunks
             with open(file_path, "rb") as f:
                 while chunk := f.read(chunk_size):
                     progress.advance(task, len(chunk))
                     yield chunk
 
+        # 明確帶 Content-Length，避免 httpx 改用 chunked 傳輸（S3 presigned PUT 不支援）
         async with httpx.AsyncClient(timeout=3600) as s3_client:
             resp = await s3_client.put(
                 upload_info.upload_url,
                 content=_iter_file(),
-                headers={"Content-Type": "video/mp4", "Content-Length": str(file_size)},
+                headers={"Content-Type": content_type, "Content-Length": str(file_size)},
             )
             if resp.status_code not in (200, 204):
                 raise RuntimeError(f"上傳至儲存空間失敗（HTTP {resp.status_code}）")

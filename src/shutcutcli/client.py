@@ -36,15 +36,23 @@ class ShotCutClient:
     def _http(self) -> httpx.AsyncClient:
         if self._client is None:
             raise RuntimeError("請使用 async with ShotCutClient(...) as client")
-        return self._http_client
-
-    @property
-    def _http_client(self) -> httpx.AsyncClient:
-        assert self._client is not None
         return self._client
 
+    async def _refresh_access_token(self) -> None:
+        """以 keyring 中的 refresh_token 換發新 access_token 並更新 header。"""
+        from .auth import get_access_token
+
+        self._access_token = await get_access_token(self._api_url)
+        self._http().headers["Authorization"] = f"Bearer {self._access_token}"
+
     async def _request(self, method: str, path: str, **kwargs: object) -> httpx.Response:
-        resp = await self._http_client.request(method, path, **kwargs)
+        resp = await self._http().request(method, path, **kwargs)
+        if resp.status_code == 401:
+            # access_token 過期：refresh 後重試原始請求一次
+            await self._refresh_access_token()
+            resp = await self._http().request(method, path, **kwargs)
+        if resp.status_code == 401:
+            raise RuntimeError("登入已過期，請重新執行 shutcutcli login")
         if resp.status_code == 429:
             retry_after = resp.headers.get("Retry-After", "?")
             raise RuntimeError(f"請求過於頻繁，請 {retry_after} 秒後再試")

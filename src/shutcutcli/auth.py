@@ -152,10 +152,11 @@ async def login(api_url: str, username: str, password: str) -> str:
         data = resp.json()
         access_token: str = data["access_token"]
 
-        # refresh_token 在 httpOnly cookie 中
-        refresh_token: str = resp.cookies.get("refresh_token") or ""
-        if refresh_token:
-            _keyring_set(api_url, refresh_token)
+        # refresh_token 在 httpOnly cookie 中；缺少時後續指令無法換發 token，視為登入失敗
+        refresh_token = resp.cookies.get("refresh_token")
+        if not refresh_token:
+            raise RuntimeError("平台回應缺少 refresh_token，無法保存登入狀態")
+        _keyring_set(api_url, refresh_token)
 
         return access_token
 
@@ -199,11 +200,12 @@ async def logout(api_url: str | None = None) -> None:
     if not api_url:
         return
 
-    refresh_token = _keyring_get(api_url)
-    if refresh_token:
+    if _keyring_get(api_url):
         try:
             # 先取得有效 access_token（後端 logout 需要 Authorization header）
             access_token = await get_access_token(api_url)
+            # refresh 會旋轉 token，必須重新讀取，否則送出的是已作廢的舊 token
+            refresh_token = _keyring_get(api_url)
             async with httpx.AsyncClient(
                 base_url=api_url,
                 timeout=10,

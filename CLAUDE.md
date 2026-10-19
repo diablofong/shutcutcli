@@ -1,22 +1,3 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
 # ShutCutCLI 專案指南
 
 ## 最高注意事項（CRITICAL）
@@ -32,11 +13,10 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - 提交訊息必須簡潔明確，只描述變更內容
 
 ### 開發規範
-- **開發一律強制嚴格採用 OpenSpec 方式開發**
-- 使用 OpenSpec 工具：https://github.com/Fission-AI/OpenSpec
-- OpenSpec 已全域安裝：`@fission-ai/openspec`
-- 遵循 OpenSpec 的所有規範和最佳實踐
-- 所有開發流程必須通過 OpenSpec 驗證
+- **開發一律採用 `/pdw` 模式，不走 OpenSpec 流程**（不建立 proposal / change、不執行 `openspec validate`）
+- Bug fix / 新功能 → `/pdw dev`；緊急修復 → `/pdw hotfix`；討論 → `/pdw talk`
+- 分支紀錄存放於 `.claude/records/`（不 commit）
+- `openspec/specs/` 僅作為既有行為的參考文件
 
 ## 專案說明
 
