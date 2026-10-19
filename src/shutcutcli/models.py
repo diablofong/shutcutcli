@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 CategoryType = Literal["offense", "defense", "turnover", "untagged"]
 
@@ -18,6 +18,12 @@ class MarkCreate(BaseModel):
     category: CategoryType = Field(default="untagged")
     label: str = Field(default="", max_length=200)
     players: list[PlayerInfo] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_time_range(self) -> "MarkCreate":
+        if self.end_time < self.start_time:
+            raise ValueError("end_time 不可早於 start_time")
+        return self
 
     model_config = {"json_schema_extra": {"example": {
         "start_time": 120.5,

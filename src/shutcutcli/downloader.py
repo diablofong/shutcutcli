@@ -32,6 +32,40 @@ def validate_youtube_url(url: str) -> None:
         raise ValueError(f"僅支援 YouTube 網址，拒絕：{safe_url}")
 
 
+_VIDEO_EXTS = {".mp4", ".mkv", ".webm"}
+
+
+def _find_downloaded_file(expected_path: Path) -> Path:
+    """找出下載完成的影片檔。
+
+    yt-dlp 合併格式後副檔名可能改變（如 .webm → .mp4），
+    因此只比對同檔名（stem）的影片檔，避免誤抓目錄中的其他影片。
+    """
+    mp4_path = expected_path.with_suffix(".mp4")
+    if mp4_path.exists():
+        return mp4_path
+    candidates = [
+        f for f in expected_path.parent.iterdir()
+        if f.stem == expected_path.stem and f.suffix.lower() in _VIDEO_EXTS
+    ]
+    if not candidates:
+        raise RuntimeError("找不到下載後的影片檔案")
+    return max(candidates, key=lambda f: f.stat().st_mtime)
+
+
+def _cleanup_partial_files(expected_path: Path) -> None:
+    """清除下載失敗留下的殘破檔案（.part / .ytdl / .temp 等暫存檔與空檔）。"""
+    if not expected_path.parent.exists():
+        return
+    prefix = expected_path.stem + "."
+    for f in expected_path.parent.iterdir():
+        if not f.is_file() or not f.name.startswith(prefix):
+            continue
+        is_temp = f.name.endswith((".part", ".ytdl")) or ".temp." in f.name
+        if is_temp or f.stat().st_size == 0:
+            f.unlink(missing_ok=True)
+
+
 def download_video(url: str, output_dir: Path | None = None) -> Path:
     """下載 YouTube 影片，回傳本地檔案路徑。
 
@@ -112,23 +146,10 @@ def download_video(url: str, output_dir: Path | None = None) -> Path:
         proc.wait()
 
     if proc.returncode != 0:
-        # 清除可能的殘破檔案
-        if expected_path.exists() and expected_path.stat().st_size == 0:
-            expected_path.unlink(missing_ok=True)
+        _cleanup_partial_files(expected_path)
         raise RuntimeError("yt-dlp 下載失敗，請確認網址或網路連線")
 
-    # 找到實際產生的 mp4 檔案
-    actual_path = expected_path.with_suffix(".mp4")
-    if not actual_path.exists():
-        # fallback：找同目錄最新建立的影片檔
-        video_exts = {".mp4", ".mkv", ".webm"}
-        candidates = [
-            f for f in output_dir.iterdir()
-            if f.suffix.lower() in video_exts
-        ]
-        if not candidates:
-            raise RuntimeError("找不到下載後的影片檔案")
-        actual_path = max(candidates, key=lambda f: f.stat().st_mtime)
+    actual_path = _find_downloaded_file(expected_path)
 
     console.print(f"[green]下載完成：{actual_path}[/green]")
     return actual_path
